@@ -724,13 +724,6 @@ grep -Ei '\.(zip|tar|dll|tar\.gz|tgz|gz|bz2|xz|7z|rar|bak|backup|old|orig|swp|sq
         const today = fmtDate(new Date());
 
         return [
-            { title:"Busca Geral no Domínio (site: / rhost:)",
-              notesHtml:'<code>-www</code> no <code>site:</code> filtra por palavra no conteúdo, não por host — pra isso use <code>rhost:</code>, que opera direto no campo host (com wildcard) e é o que de fato enumera subdomínio.',
-              items:[
-                `site:${t} -www`,
-                `site:${t}`,
-                `rhost:${rt}.*`
-              ]},
             { title:"Vazamento de Credenciais em Plataformas de Terceiros", items:[
                 `site:github.com "${t}" "password" "env"`,
                 `site:pastebin.com "${t}" intext:password`,
@@ -744,13 +737,10 @@ grep -Ei '\.(zip|tar|dll|tar\.gz|tgz|gz|bz2|xz|7z|rar|bak|backup|old|orig|swp|sq
                 `site:slack.com "${t}" "authentication" "leaked"`
             ]},
             { title:"Enumeração de Subdomínios (rhost:)",
-              notesHtml:'<code>rhost:</code> é exclusivo do Yandex — domínio invertido (tld.dominio.sub) + <code>*</code>; costuma achar subdomínio que o Google não indexa. Palpites rápidos abaixo; pra cobertura máxima use o script (brute por caractere inicial + drill recursivo nas letras que vierem cheias).',
+              notesHtml:'<code>rhost:</code> opera direto no campo host (com wildcard) — é o que de fato enumera subdomínio; <code>site:</code> ao lado é só referência, filtra por palavra no conteúdo, não por host. Exemplos macro abaixo; pra cobertura máxima use o script (brute por caractere inicial + drill recursivo nas letras que vierem cheias).',
               items:[
                 `rhost:${rt}.*`,
-                `rhost:${rt}.admin*`,
-                `rhost:${rt}.dev*`,
-                `rhost:${rt}.api*`,
-                `rhost:${rt}.vpn*`
+                `site:${t} -www`
               ],
               code:[
 String.raw`#!/usr/bin/env python3
