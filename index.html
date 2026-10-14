@@ -360,6 +360,8 @@
                 `site:${dp} intext:"index of" -intext:"Index of /icons"`
             ]},
             { title:"Dicas Gerais & Filtros", items:[
+                `site:${dp} -www`,
+                `site:${dp} filetype:pdf`,
                 `site:${dp} -www -statusstatus`,
                 `site:*.${t} -www`,
                 `site:*.*.${t} -www`
@@ -788,16 +790,14 @@ for c in {a..z}; do echo "rhost:${rt}.$c*"; done`
                 `"Index of /.git/" site:${t}`,
                 `"Index of /.ssh/" site:${t}`
             ]},
-            { title:"Documentos Sensíveis por Tipo de Arquivo (mime:)", items:[
-                `site:${t} (mime:pdf | mime:doc | mime:docx | mime:xls | mime:xlsx)`,
-                `site:${t} "password" OR "senha" OR "confidencial" (mime:pdf | mime:doc | mime:docx)`,
-                `site:${t} "internal use only" OR "uso interno" (mime:pdf | mime:ppt | mime:pptx)`
-            ]},
-            { title:"Formatos Legados — ninguém mais olha aqui (mime:)",
-              notesHtml:'Flash e OpenDocument saíram de moda, mas ficaram indexados por anos com endpoint/chave antiga ainda viva.',
+            { title:"Documentos Sensíveis por Tipo de Arquivo (mime:)",
+              notesHtml:'<code>mime:</code> só aceita estes tipos (doc oficial): <code>pdf doc xls ppt rtf odt ods odp odg swf</code> — docx/xlsx/pptx/html não são suportados.',
               items:[
-                `site:${t} mime:swf`,
-                `site:${t} (mime:odt | mime:ods | mime:odp | mime:odg | mime:rtf)`
+                `site:${t} (mime:pdf | mime:doc | mime:rtf)`,
+                `site:${t} "password" OR "senha" OR "confidencial" (mime:pdf | mime:doc | mime:rtf)`,
+                `site:${t} "internal use only" OR "uso interno" (mime:ppt | mime:odp)`,
+                `site:${t} (mime:odt | mime:ods | mime:odg)`,
+                `site:${t} mime:swf`
               ]},
             { title:"Busca por Forma Exata — reduz ruído de sinônimo (!)",
               notesHtml:'Yandex expande por sinônimo/flexão por padrão; <code>!</code> antes da palavra força forma exata — útil pra nome de variável/chave literal.',
