@@ -737,20 +737,49 @@ grep -Ei '\.(zip|tar|dll|tar\.gz|tgz|gz|bz2|xz|7z|rar|bak|backup|old|orig|swp|sq
                 `site:slack.com "${t}" "authentication" "leaked"`
             ]},
             { title:"Enumeração de Subdomínios (rhost:)",
-              notesHtml:'operador <code>rhost:</code> é exclusivo do Yandex — domínio invertido (tld.dominio.sub) + <code>*</code>; costuma achar subdomínios que o Google não indexa.',
+              notesHtml:'<code>rhost:</code> é exclusivo do Yandex — domínio invertido (tld.dominio.sub) + <code>*</code>; costuma achar subdomínio que o Google não indexa. Palpites rápidos abaixo; pra cobertura máxima use o script (brute por caractere inicial + drill recursivo nas letras que vierem cheias).',
               items:[
                 `rhost:${rt}.*`,
                 `rhost:${rt}.admin*`,
                 `rhost:${rt}.dev*`,
                 `rhost:${rt}.api*`,
-                `rhost:${rt}.staging*`,
-                `rhost:${rt}.test*`,
-                `rhost:${rt}.internal*`,
                 `rhost:${rt}.vpn*`
               ],
               code:[
-`# brute-force por letra inicial (a-z) — cobre o que os wildcards acima deixarem passar
-for c in {a..z}; do echo "rhost:${rt}.$c*"; done`
+String.raw`#!/usr/bin/env python3
+# uso: python3 yandex_subs.py [prefixo]
+# sem prefixo: varre a-z0-9- (1 nível, 36 queries). com prefixo (ex: "ad"): varre ad+[a-z0-9-] (1 nível mais fundo).
+# reroda passando o prefixo nas letras que saírem marcadas CHEIO, até elas pararem de aparecer.
+import re, sys, time, requests
+
+domain = "${t}"
+rt = "${rt}"
+prefix = sys.argv[1].lower() if len(sys.argv) > 1 else ""
+chars = "abcdefghijklmnopqrstuvwxyz0123456789-"
+headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0 Safari/537.36"}
+host_re = re.compile(rf"([a-z0-9-]+(?:\.[a-z0-9-]+)*\.{re.escape(domain)})", re.I)
+seen = set()
+
+for c in chars:
+    q = f"rhost:{rt}.{prefix}{c}*"
+    hosts = set()
+    for page in range(3):              # ponytail: 3 páginas fixas (~30 resultados/query), suba se precisar de mais
+        r = requests.get("https://yandex.com/search/", params={"text": q, "p": page}, headers=headers, timeout=15)
+        if r.status_code != 200 or "captcha" in r.url:
+            print(f"[!] bloqueado em {q!r} (p={page}) -- resolve o captcha no navegador e roda de novo mais devagar", file=sys.stderr)
+            break
+        found = {h.lower() for h in host_re.findall(r.text)} - {domain, "www." + domain}
+        if found <= hosts:
+            break                       # página sem host novo = acabou essa busca
+        hosts |= found
+        time.sleep(2)
+    new = hosts - seen
+    seen |= hosts
+    flag = f"  <- CHEIO, drilha: python3 yandex_subs.py {prefix}{c}" if len(hosts) >= 10 else ""
+    print(f"{prefix}{c}*  ({len(hosts)} hosts){flag}")
+    for h in sorted(new):
+        print(f"  {h}")
+    time.sleep(2)`
               ]},
             { title:"Variantes de Marca / Domínio (domain:)",
               notesHtml:`<code>domain:</code> casa o rótulo "${brand}" em qualquer TLD ou nível — bom pra achar typosquatting, domínios paralelos e páginas de phishing usando a marca do alvo.`,
