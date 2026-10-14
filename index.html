@@ -360,7 +360,9 @@
                 `site:${dp} intext:"index of" -intext:"Index of /icons"`
             ]},
             { title:"Dicas Gerais & Filtros", items:[
-                `site:${dp} -www -statusstatus`
+                `site:${dp} -www -statusstatus`,
+                `site:*.${t} -www`,
+                `site:*.*.${t} -www`
             ]},
             { title:"Arquivos de Configuração", items:[
                 `site:${dp} ext:xml | ext:conf | ext:cnf | ext:reg | ext:inf | ext:rdp | ext:cfg | ext:txt | ext:ora | ext:ini`,
@@ -708,6 +710,116 @@ grep -Ei '\.(zip|tar|dll|tar\.gz|tgz|gz|bz2|xz|7z|rar|bak|backup|old|orig|swp|sq
         ];
     }
 
+    // ---------- YANDEX ----------
+    function buildYandex(ctx){
+        const t = ctx.t;
+        const labels = t.split('.').filter(Boolean);
+        const rt = labels.slice().reverse().join('.');
+        const brand = labels[0] || t;
+        const fmtDate = d => `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+        const since180 = (() => { const d = new Date(); d.setDate(d.getDate() - 180); return fmtDate(d); })();
+        const since365 = (() => { const d = new Date(); d.setDate(d.getDate() - 365); return fmtDate(d); })();
+        const today = fmtDate(new Date());
+
+        return [
+            { title:"Vazamento de Credenciais em Plataformas de Terceiros", items:[
+                `site:github.com "${t}" "password" "env"`,
+                `site:pastebin.com "${t}" intext:password`,
+                `site:gitlab.com "${t}" intitle:"password" "admin"`,
+                `site:bitbucket.org "${t}" "environment variables" password`,
+                `site:reddit.com "${t}" "credentials" "leaked"`,
+                `site:medium.com "${t}" intitle:"credentials" filetype:txt`,
+                `site:stackoverflow.com "${t}" intitle:"password" "config"`,
+                `site:dockerhub.com "${t}" intitle:"password" "secrets"`,
+                `site:quora.com "${t}" "login" "credentials"`,
+                `site:slack.com "${t}" "authentication" "leaked"`
+            ]},
+            { title:"Enumeração de Subdomínios (rhost:)",
+              notesHtml:'operador <code>rhost:</code> é exclusivo do Yandex — domínio invertido (tld.dominio.sub) + <code>*</code>; costuma achar subdomínios que o Google não indexa.',
+              items:[
+                `rhost:${rt}.*`,
+                `rhost:${rt}.admin*`,
+                `rhost:${rt}.dev*`,
+                `rhost:${rt}.api*`,
+                `rhost:${rt}.staging*`,
+                `rhost:${rt}.test*`,
+                `rhost:${rt}.internal*`,
+                `rhost:${rt}.vpn*`
+              ],
+              code:[
+`# brute-force por letra inicial (a-z) — cobre o que os wildcards acima deixarem passar
+for c in {a..z}; do echo "rhost:${rt}.$c*"; done`
+              ]},
+            { title:"Variantes de Marca / Domínio (domain:)",
+              notesHtml:`<code>domain:</code> casa o rótulo "${brand}" em qualquer TLD ou nível — bom pra achar typosquatting, domínios paralelos e páginas de phishing usando a marca do alvo.`,
+              items:[
+                `domain:${brand}`,
+                `"login" OR "verificação" OR "conta" domain:${brand}`
+              ]},
+            { title:"Pivot em Subdomínio Confirmado (host:)",
+              notesHtml:'depois de achar um subdomínio via <code>rhost:</code>, revalide e restrinja a busca só a ele com <code>host:</code> — escopo mais estreito que <code>site:</code>, menos ruído.',
+              items:[
+                `"debug" OR "stacktrace" OR "internal" host:dev.${t}`,
+                `"password" OR "config" host:admin.${t}`
+              ]},
+            { title:"Painéis de Login & Autenticação (url: / site:)", items:[
+                `site:${t} "login" OR "entrar" OR "painel" OR "admin"`,
+                `"login" url:${t}/admin*`,
+                `"login" url:${t}/login*`,
+                `site:${t} intitle:"painel administrativo" OR intitle:"admin panel"`
+            ]},
+            { title:"Endpoints de API & Infra (url:)", items:[
+                `url:${t}/api/*`,
+                `url:${t}/graphql`,
+                `url:${t}/swagger*`,
+                `url:${t}/.well-known/*`
+            ]},
+            { title:"Conteúdo Fora do Idioma Esperado (lang:)",
+              notesHtml:'doc técnico/API spec não localizado costuma ficar em idioma diferente do site principal — geralmente esquecido e sem monitoramento.',
+              items:[
+                `site:${t} lang:en`,
+                `site:${t} "api" OR "documentation" lang:en`
+              ]},
+            { title:"Listagem de Diretórios Expostos (\"Index of\")", items:[
+                `"Index of /" "Parent Directory" site:${t}`,
+                `"Index of /admin" "Parent Directory" site:${t}`,
+                `"Index of /backup" "Parent Directory" site:${t}`,
+                `"Index of /mail" "Parent Directory" site:${t}`,
+                `"Index of /.git/" site:${t}`,
+                `"Index of /.ssh/" site:${t}`
+            ]},
+            { title:"Documentos Sensíveis por Tipo de Arquivo (mime:)", items:[
+                `site:${t} (mime:pdf | mime:doc | mime:docx | mime:xls | mime:xlsx)`,
+                `site:${t} "password" OR "senha" OR "confidencial" (mime:pdf | mime:doc | mime:docx)`,
+                `site:${t} "internal use only" OR "uso interno" (mime:pdf | mime:ppt | mime:pptx)`
+            ]},
+            { title:"Formatos Legados — ninguém mais olha aqui (mime:)",
+              notesHtml:'Flash e OpenDocument saíram de moda, mas ficaram indexados por anos com endpoint/chave antiga ainda viva.',
+              items:[
+                `site:${t} mime:swf`,
+                `site:${t} (mime:odt | mime:ods | mime:odp | mime:odg | mime:rtf)`
+              ]},
+            { title:"Busca por Forma Exata — reduz ruído de sinônimo (!)",
+              notesHtml:'Yandex expande por sinônimo/flexão por padrão; <code>!</code> antes da palavra força forma exata — útil pra nome de variável/chave literal.',
+              items:[
+                `site:${t} !token !secret`,
+                `site:${t} !apikey !senha`
+              ]},
+            { title:"Busca Livre com Morfologia Automática (+)",
+              notesHtml:'sem aspas, Yandex já casa flexões e sinônimos sozinho — pega "vulnerável/vulnerabilidade/exposto/exposição" sem listar cada forma. <code>+</code> força a palavra aparecer.',
+              items:[
+                `+${t} vulnerabilidade exposta backup`,
+                `+${t} vazamento credenciais senha`
+              ]},
+            { title:"Conteúdo Modificado Recentemente (date:)",
+              notesHtml:'páginas alteradas há pouco tempo — bom sinal de staging/config recém-publicado e esquecido.',
+              items:[
+                `site:${t} date:>${since180}`,
+                `site:${t} date:${since365}..${today}`
+              ]}
+        ];
+    }
+
     const SOURCES = {
         google:{
             name:"google", accent:"#39ff6a",
@@ -744,6 +856,12 @@ grep -Ei '\.(zip|tar|dll|tar\.gz|tgz|gz|bz2|xz|7z|rar|bak|backup|old|orig|swp|sq
             hint:"informe a API key do VT acima para preencher os comandos (opcional).",
             build: buildVirustotal,
             openUrl: q => q
+        },
+        yandex:{
+            name:"yandex", accent:"#39ff6a",
+            hint:"busca vazamentos de credenciais do alvo em plataformas de terceiros (github, pastebin, etc).",
+            build: buildYandex,
+            openUrl: q => `https://yandex.com/search/?text=${encodeURIComponent(q)}`
         }
     };
 
