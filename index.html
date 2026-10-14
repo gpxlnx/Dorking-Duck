@@ -724,6 +724,62 @@ grep -Ei '\.(zip|tar|dll|tar\.gz|tgz|gz|bz2|xz|7z|rar|bak|backup|old|orig|swp|sq
         const today = fmtDate(new Date());
 
         return [
+            // --- coluna 1: recon de infraestrutura (subdomínio / endpoint) ---
+            { title:"Enumeração de Subdomínios (rhost:)",
+              notesHtml:'<code>rhost:</code> opera direto no campo host (com wildcard) — é o que de fato enumera subdomínio; <code>site:</code> ao lado é só referência, filtra por palavra no conteúdo, não por host.',
+              items:[
+                `rhost:${rt}.*`,
+                `site:${t} -www`
+              ]},
+            { title:"Pivot em Subdomínio Confirmado (host:)",
+              notesHtml:'depois de achar um subdomínio via <code>rhost:</code>, revalide e restrinja a busca só a ele com <code>host:</code> — escopo mais estreito que <code>site:</code>, menos ruído.',
+              items:[
+                `"debug" OR "stacktrace" OR "internal" host:dev.${t}`,
+                `"password" OR "config" host:admin.${t}`
+              ]},
+            { title:"Variantes de Marca / Domínio (domain:)",
+              notesHtml:`<code>domain:</code> casa o rótulo "${brand}" em qualquer TLD ou nível — bom pra achar typosquatting, domínios paralelos e páginas de phishing usando a marca do alvo.`,
+              items:[
+                `domain:${brand}`,
+                `"login" OR "verificação" OR "conta" domain:${brand}`
+              ]},
+            { title:"Endpoints de API & Infra (url:)", items:[
+                `url:${t}/api/*`,
+                `url:${t}/graphql`,
+                `url:${t}/swagger*`,
+                `url:${t}/.well-known/*`
+            ]},
+
+            // --- conteúdo exposto / credenciais ---
+            { title:"Painéis de Login & Autenticação (url: / site:)", items:[
+                `site:${t} "login" OR "entrar" OR "painel" OR "admin"`,
+                `"login" url:${t}/admin*`,
+                `"login" url:${t}/login*`,
+                `site:${t} intitle:"painel administrativo" OR intitle:"admin panel"`
+            ]},
+            { title:"Listagem de Diretórios Expostos (\"Index of\")", items:[
+                `"Index of /" "Parent Directory" site:${t}`,
+                `"Index of /admin" "Parent Directory" site:${t}`,
+                `"Index of /backup" "Parent Directory" site:${t}`,
+                `"Index of /mail" "Parent Directory" site:${t}`,
+                `"Index of /.git/" site:${t}`,
+                `"Index of /.ssh/" site:${t}`
+            ]},
+            { title:"Documentos Sensíveis por Tipo de Arquivo (mime:)",
+              notesHtml:'<code>mime:</code> só aceita estes tipos (doc oficial): <code>pdf doc xls ppt rtf odt ods odp odg swf</code> — docx/xlsx/pptx/html não são suportados.',
+              items:[
+                `site:${t} (mime:pdf | mime:doc | mime:rtf)`,
+                `site:${t} "password" OR "senha" OR "confidencial" (mime:pdf | mime:doc | mime:rtf)`,
+                `site:${t} "internal use only" OR "uso interno" (mime:ppt | mime:odp)`,
+                `site:${t} (mime:odt | mime:ods | mime:odg)`,
+                `site:${t} mime:swf`
+              ]},
+            { title:"Conteúdo Fora do Idioma Esperado (lang:)",
+              notesHtml:'doc técnico/API spec não localizado costuma ficar em idioma diferente do site principal — geralmente esquecido e sem monitoramento.',
+              items:[
+                `site:${t} lang:en`,
+                `site:${t} "api" OR "documentation" lang:en`
+              ]},
             { title:"Vazamento de Credenciais em Plataformas de Terceiros", items:[
                 `site:github.com "${t}" "password" "env"`,
                 `site:pastebin.com "${t}" intext:password`,
@@ -736,12 +792,30 @@ grep -Ei '\.(zip|tar|dll|tar\.gz|tgz|gz|bz2|xz|7z|rar|bak|backup|old|orig|swp|sq
                 `site:quora.com "${t}" "login" "credentials"`,
                 `site:slack.com "${t}" "authentication" "leaked"`
             ]},
-            { title:"Enumeração de Subdomínios (rhost:)",
-              notesHtml:'<code>rhost:</code> opera direto no campo host (com wildcard) — é o que de fato enumera subdomínio; <code>site:</code> ao lado é só referência, filtra por palavra no conteúdo, não por host. Exemplos macro abaixo; pra cobertura máxima use o script (brute por caractere inicial + drill recursivo nas letras que vierem cheias).',
+
+            // --- mecânica da query language (filtros) ---
+            { title:"Busca por Forma Exata — reduz ruído de sinônimo (!)",
+              notesHtml:'Yandex expande por sinônimo/flexão por padrão; <code>!</code> antes da palavra força forma exata — útil pra nome de variável/chave literal.',
               items:[
-                `rhost:${rt}.*`,
-                `site:${t} -www`
-              ],
+                `site:${t} !token !secret`,
+                `site:${t} !apikey !senha`
+              ]},
+            { title:"Busca Livre com Morfologia Automática (+)",
+              notesHtml:'sem aspas, Yandex já casa flexões e sinônimos sozinho — pega "vulnerável/vulnerabilidade/exposto/exposição" sem listar cada forma. <code>+</code> força a palavra aparecer.',
+              items:[
+                `+${t} vulnerabilidade exposta backup`,
+                `+${t} vazamento credenciais senha`
+              ]},
+            { title:"Conteúdo Modificado Recentemente (date:)",
+              notesHtml:'páginas alteradas há pouco tempo — bom sinal de staging/config recém-publicado e esquecido.',
+              items:[
+                `site:${t} date:>${since180}`,
+                `site:${t} date:${since365}..${today}`
+              ]},
+
+            // --- automação (por último, de propósito) ---
+            { title:"Brute-force de Subdomínio via rhost: (CLI)",
+              notesHtml:'cobertura máxima do item <code>rhost:</code> da 1ª coluna: brute por caractere inicial + drill recursivo nas letras que vierem cheias.',
               code:[
 String.raw`#!/usr/bin/env python3
 # uso: python3 yandex_subs.py [prefixo]
@@ -777,71 +851,6 @@ for c in chars:
     for h in sorted(new):
         print(f"  {h}")
     time.sleep(2)`
-              ]},
-            { title:"Variantes de Marca / Domínio (domain:)",
-              notesHtml:`<code>domain:</code> casa o rótulo "${brand}" em qualquer TLD ou nível — bom pra achar typosquatting, domínios paralelos e páginas de phishing usando a marca do alvo.`,
-              items:[
-                `domain:${brand}`,
-                `"login" OR "verificação" OR "conta" domain:${brand}`
-              ]},
-            { title:"Pivot em Subdomínio Confirmado (host:)",
-              notesHtml:'depois de achar um subdomínio via <code>rhost:</code>, revalide e restrinja a busca só a ele com <code>host:</code> — escopo mais estreito que <code>site:</code>, menos ruído.',
-              items:[
-                `"debug" OR "stacktrace" OR "internal" host:dev.${t}`,
-                `"password" OR "config" host:admin.${t}`
-              ]},
-            { title:"Painéis de Login & Autenticação (url: / site:)", items:[
-                `site:${t} "login" OR "entrar" OR "painel" OR "admin"`,
-                `"login" url:${t}/admin*`,
-                `"login" url:${t}/login*`,
-                `site:${t} intitle:"painel administrativo" OR intitle:"admin panel"`
-            ]},
-            { title:"Endpoints de API & Infra (url:)", items:[
-                `url:${t}/api/*`,
-                `url:${t}/graphql`,
-                `url:${t}/swagger*`,
-                `url:${t}/.well-known/*`
-            ]},
-            { title:"Conteúdo Fora do Idioma Esperado (lang:)",
-              notesHtml:'doc técnico/API spec não localizado costuma ficar em idioma diferente do site principal — geralmente esquecido e sem monitoramento.',
-              items:[
-                `site:${t} lang:en`,
-                `site:${t} "api" OR "documentation" lang:en`
-              ]},
-            { title:"Listagem de Diretórios Expostos (\"Index of\")", items:[
-                `"Index of /" "Parent Directory" site:${t}`,
-                `"Index of /admin" "Parent Directory" site:${t}`,
-                `"Index of /backup" "Parent Directory" site:${t}`,
-                `"Index of /mail" "Parent Directory" site:${t}`,
-                `"Index of /.git/" site:${t}`,
-                `"Index of /.ssh/" site:${t}`
-            ]},
-            { title:"Documentos Sensíveis por Tipo de Arquivo (mime:)",
-              notesHtml:'<code>mime:</code> só aceita estes tipos (doc oficial): <code>pdf doc xls ppt rtf odt ods odp odg swf</code> — docx/xlsx/pptx/html não são suportados.',
-              items:[
-                `site:${t} (mime:pdf | mime:doc | mime:rtf)`,
-                `site:${t} "password" OR "senha" OR "confidencial" (mime:pdf | mime:doc | mime:rtf)`,
-                `site:${t} "internal use only" OR "uso interno" (mime:ppt | mime:odp)`,
-                `site:${t} (mime:odt | mime:ods | mime:odg)`,
-                `site:${t} mime:swf`
-              ]},
-            { title:"Busca por Forma Exata — reduz ruído de sinônimo (!)",
-              notesHtml:'Yandex expande por sinônimo/flexão por padrão; <code>!</code> antes da palavra força forma exata — útil pra nome de variável/chave literal.',
-              items:[
-                `site:${t} !token !secret`,
-                `site:${t} !apikey !senha`
-              ]},
-            { title:"Busca Livre com Morfologia Automática (+)",
-              notesHtml:'sem aspas, Yandex já casa flexões e sinônimos sozinho — pega "vulnerável/vulnerabilidade/exposto/exposição" sem listar cada forma. <code>+</code> força a palavra aparecer.',
-              items:[
-                `+${t} vulnerabilidade exposta backup`,
-                `+${t} vazamento credenciais senha`
-              ]},
-            { title:"Conteúdo Modificado Recentemente (date:)",
-              notesHtml:'páginas alteradas há pouco tempo — bom sinal de staging/config recém-publicado e esquecido.',
-              items:[
-                `site:${t} date:>${since180}`,
-                `site:${t} date:${since365}..${today}`
               ]}
         ];
     }
@@ -885,7 +894,7 @@ for c in chars:
         },
         yandex:{
             name:"yandex", accent:"#39ff6a",
-            hint:"busca vazamentos de credenciais do alvo em plataformas de terceiros (github, pastebin, etc).",
+            hint:"foco em recon de subdomínio/endpoint (rhost:/host:/url:) + vazamento, docs sensíveis e filtros avançados.",
             build: buildYandex,
             openUrl: q => `https://yandex.com/search/?text=${encodeURIComponent(q)}`
         }
