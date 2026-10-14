@@ -724,6 +724,12 @@ grep -Ei '\.(zip|tar|dll|tar\.gz|tgz|gz|bz2|xz|7z|rar|bak|backup|old|orig|swp|sq
         const today = fmtDate(new Date());
 
         return [
+            { title:"Busca Geral no Domínio (site:)",
+              notesHtml:'<code>-www</code> aqui filtra por palavra no conteúdo, não por host (isso é trabalho do <code>rhost:</code>/<code>host:</code> acima) — serve pra recon de conteúdo geral, não pra achar subdomínio.',
+              items:[
+                `site:${t} -www`,
+                `site:${t}`
+              ]},
             { title:"Vazamento de Credenciais em Plataformas de Terceiros", items:[
                 `site:github.com "${t}" "password" "env"`,
                 `site:pastebin.com "${t}" intext:password`,
